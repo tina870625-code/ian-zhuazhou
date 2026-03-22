@@ -39,35 +39,50 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        // 將功能掛載到 window 讓 React 程式碼讀取
         window.fb = { db, auth, collection, addDoc, onSnapshot, serverTimestamp, signInAnonymously };
     </script>
 
     <!-- React 網頁邏輯 -->
     <script type="text/babel">
-        const { useState, useEffect } = React;
+        const { useState, useEffect, useMemo } = React;
 
+        // 🌟 完整的 24 個選項與職業說明 🌟
         const ITEMS = [
-            { id: 'globe', name: '地球儀', emoji: '🌍' },
-            { id: 'robot', name: '機器人', emoji: '🤖' },
-            { id: 'mic', name: '麥克風', emoji: '🎤' },
-            { id: 'computer', name: '電腦', emoji: '💻' },
-            { id: 'seal', name: '官印', emoji: '💮' },
-            { id: 'airplane', name: '飛機', emoji: '✈️' },
-            { id: 'gold_ingot', name: '元寶', emoji: '💰' },
-            { id: 'stethoscope', name: '聽診器', emoji: '🩺' },
-            { id: 'abacus', name: '算盤', emoji: '🧮' },
-            { id: 'palette', name: '畫盤', emoji: '🎨' },
-            { id: 'camera', name: '相機', emoji: '📷' },
-            { id: 'gavel', name: '法官槌', emoji: '⚖️' }
+            { id: 'globe', name: '地球儀', desc: '導遊 / 旅遊家', emoji: '🌍' },
+            { id: 'blackboard', name: '黑板', desc: '老師 / 教授', emoji: '🧑‍🏫' },
+            { id: 'robot', name: '機器人', desc: '科技研發', emoji: '🤖' },
+            { id: 'mic', name: '麥克風', desc: '歌手 / 藝人', emoji: '🎤' },
+            { id: 'piano', name: '鋼琴', desc: '音樂家', emoji: '🎹' },
+            { id: 'computer', name: '電腦', desc: '程式工程師', emoji: '💻' },
+            { id: 'astronaut', name: '太空人', desc: '航太產業', emoji: '🧑‍🚀' },
+            { id: 'seal', name: '官印', desc: '政治人物', emoji: '💮' },
+            { id: 'airplane', name: '飛機', desc: '機長 / 空服員', emoji: '✈️' },
+            { id: 'phd_hat', name: '博士帽', desc: '學者專家', emoji: '🎓' },
+            { id: 'football', name: '足球', desc: '運動員', emoji: '⚽' },
+            { id: 'face_doll', name: '變臉娃娃', desc: '心理諮商師', emoji: '🎭' },
+            { id: 'magnifier', name: '放大鏡', desc: '科學家', emoji: '🔍' },
+            { id: 'camera', name: '相機', desc: '攝影師', emoji: '📷' },
+            { id: 'spatula', name: '鍋鏟', desc: '廚師', emoji: '🍳' },
+            { id: 'gavel', name: '法官槌', desc: '法官 / 律師', emoji: '⚖️' },
+            { id: 'gold_ingot', name: '元寶', desc: '企業家 / 有錢人', emoji: '💰' },
+            { id: 'ruler_pen', name: '尺+筆', desc: '建築設計師', emoji: '📏✏️' },
+            { id: 'stethoscope', name: '聽診器', desc: '醫生 / 護士', emoji: '🩺' },
+            { id: 'phone', name: '手機', desc: '業務 / 網紅', emoji: '📱' },
+            { id: 'abacus', name: '算盤', desc: '商人 / 會計師', emoji: '🧮' },
+            { id: 'clapperboard', name: '場記板', desc: '導演 / 演員', emoji: '🎬' },
+            { id: 'baozi', name: '包子', desc: '美食家', emoji: '🥟' },
+            { id: 'palette', name: '畫盤', desc: '畫家 / 藝術家', emoji: '🎨' },
         ];
 
         function App() {
             const [activeTab, setActiveTab] = useState('vote');
             const [votes, setVotes] = useState([]);
+            const [messages, setMessages] = useState([]);
             const [name, setName] = useState('');
+            const [msgText, setMsgText] = useState('');
             const [selected, setSelected] = useState([]);
-            const [voted, setVoted] = useState(localStorage.getItem('voted_ian') === 'true');
+            const [voted, setVoted] = useState(localStorage.getItem('voted_ian_final') === 'true');
+            const [isSending, setIsSending] = useState(false);
 
             useEffect(() => {
                 const init = async () => {
@@ -75,17 +90,38 @@
                     const { db, auth, collection, onSnapshot, signInAnonymously } = window.fb;
                     await signInAnonymously(auth);
                     onSnapshot(collection(db, "votes"), s => setVotes(s.docs.map(d => d.data())));
+                    onSnapshot(collection(db, "messages"), s => {
+                        const msgs = s.docs.map(d => d.data()).sort((a, b) => (b.time?.toMillis() || 0) - (a.time?.toMillis() || 0));
+                        setMessages(msgs);
+                    });
                 };
                 init();
+            }, []);
+
+            const ageString = useMemo(() => {
+                const birth = new Date(2025, 3, 13);
+                const today = new Date();
+                const diff = today - birth;
+                const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+                return `${Math.floor(d / 365)}Y ${Math.floor((d % 365) / 30)}M ${d % 30}D`;
             }, []);
 
             const submitVote = async () => {
                 if(selected.length !== 3 || !name) return;
                 const { db, collection, addDoc, serverTimestamp } = window.fb;
                 await addDoc(collection(db, "votes"), { name, items: selected, time: serverTimestamp() });
-                localStorage.setItem('voted_ian', 'true');
+                localStorage.setItem('voted_ian_final', 'true');
                 setVoted(true);
                 setActiveTab('results');
+            };
+
+            const submitMessage = async () => {
+                if(!name || !msgText) return;
+                setIsSending(true);
+                const { db, collection, addDoc, serverTimestamp } = window.fb;
+                await addDoc(collection(db, "messages"), { name, text: msgText, time: serverTimestamp() });
+                setMsgText('');
+                setIsSending(false);
             };
 
             return (
@@ -97,16 +133,18 @@
                                 <div className="bg-white p-6 rounded-3xl shadow-sm border border-[#F2E8DA]">
                                     <input className="w-full p-4 mb-4 rounded-2xl border-2 border-[#F2E8DA] focus:border-[#D4BCA1] outline-none" placeholder="您的稱呼" value={name} onChange={e=>setName(e.target.value)} />
                                     <p className="text-xs text-[#8C7A6D] mb-4 text-center">請選出您心目中宇恩會抓到的 3 個物品 ({selected.length}/3)</p>
-                                    <div className="grid grid-cols-3 gap-2 mb-6">
+                                    <div className="grid grid-cols-2 gap-3 mb-6">
                                         {ITEMS.map(item => {
                                             const isSelected = selected.find(i=>i.id===item.id);
                                             return (
                                                 <button key={item.id} onClick={() => {
                                                     if(isSelected) setSelected(selected.filter(i=>i.id!==item.id))
                                                     else if(selected.length < 3) setSelected([...selected, item])
-                                                }} className={`p-2 rounded-xl border-2 transition-all ${isSelected ? 'bg-[#F2E8DA] border-[#D4BCA1]' : 'bg-white border-transparent'}`}>
-                                                    <div className="text-2xl">{item.emoji}</div>
-                                                    <div className="text-[10px] font-bold text-[#6B5A4E]">{item.name}</div>
+                                                }} className={`p-3 rounded-2xl border-2 transition-all flex flex-col items-center justify-center ${isSelected ? 'bg-[#F2E8DA] border-[#D4BCA1] scale-105' : 'bg-white border-transparent'}`}>
+                                                    <div className="text-3xl mb-1">{item.emoji}</div>
+                                                    <div className="text-sm font-bold text-[#6B5A4E]">{item.name}</div>
+                                                    {/* 🌟 補回職業說明文字 🌟 */}
+                                                    <div className="text-[10px] text-[#A68A6E] mt-0.5">{item.desc}</div>
                                                 </button>
                                             );
                                         })}
@@ -116,8 +154,8 @@
                             ) : (
                                 <div className="text-center p-10 bg-white rounded-3xl border border-[#F2E8DA]">
                                     <div className="text-4xl mb-4">👶🏻</div>
-                                    <h2 className="text-xl font-bold text-[#6B5A4E]">感謝預測！</h2>
-                                    <p className="text-[#8C7A6D] mt-2">派對當天見分曉！</p>
+                                    <h2 className="text-xl font-bold text-[#6B5A4E]">感謝您的預測！</h2>
+                                    <p className="text-[#8C7A6D] mt-2">派對當天見分曉 🤍</p>
                                 </div>
                             )}
                         </div>
@@ -132,7 +170,10 @@
                                     <div key={item.id} className="bg-white p-4 mb-3 rounded-2xl shadow-sm flex items-center gap-4 border border-[#FDFBF7]">
                                         <span className="text-2xl">{item.emoji}</span>
                                         <div className="flex-grow">
-                                            <div className="flex justify-between text-sm font-bold text-[#6B5A4E]"><span>{item.name}</span><span>{count} 票</span></div>
+                                            <div className="flex justify-between text-sm font-bold text-[#6B5A4E]">
+                                                <span>{item.name} <span className="font-normal text-[10px] text-[#BDB1A6]">({item.desc})</span></span>
+                                                <span>{count} 票</span>
+                                            </div>
                                             <div className="w-full bg-[#F4F0EB] h-2 rounded-full mt-1 overflow-hidden">
                                                 <div className="bg-[#D4BCA1] h-2 rounded-full transition-all duration-1000" style={{width: `${(count/Math.max(votes.length, 1))*100}%`}}></div>
                                             </div>
@@ -147,11 +188,31 @@
                         <div className="animate-fade-in">
                             <div className="bg-[#EAE0D3] p-8 rounded-3xl text-center mb-6 shadow-sm">
                                 <img src="./image.png" className="w-32 h-32 mx-auto rounded-full border-4 border-white object-cover mb-4 shadow-lg" onError={(e)=>e.target.src='https://api.dicebear.com/7.x/avataaars/svg?seed=Baby'} />
-                                <h2 className="text-2xl font-bold text-[#5A4A42]">謝宇恩</h2>
-                                <p className="text-[#8C7A6D] text-xs mt-1">2025.04.13 Zhuazhou Party</p>
+                                <p className="text-[#8C7A6D] text-xs">宇恩 已經來到這個世界</p>
+                                <h2 className="text-2xl font-bold text-[#5A4A42] mt-1">{ageString}</h2>
                             </div>
-                            <div className="bg-white/80 p-6 rounded-3xl text-center text-[#6B5A4E] text-sm leading-relaxed border border-[#F2E8DA]">
-                                <p>宇恩，是我們生命中最溫柔的重心。<br/>謝謝大家陪伴他成長，見證這份回憶。</p>
+                            
+                            <div className="bg-white p-6 rounded-3xl text-center text-[#6B5A4E] text-sm leading-relaxed border border-[#F2E8DA] mb-6">
+                                <p>宇恩，是我們生命中最溫柔的重心。<br/>謝謝大家參與他人生中的第一個派對！</p>
+                            </div>
+
+                            <div className="bg-white p-6 rounded-3xl shadow-sm border border-[#F2E8DA] mb-6">
+                                <h3 className="font-bold text-[#6B5A4E] mb-4">留下一句祝福：</h3>
+                                <input className="w-full p-3 mb-3 rounded-xl border border-[#F2E8DA] text-sm outline-none" placeholder="您的名字" value={name} onChange={e=>setName(e.target.value)} />
+                                <textarea className="w-full p-3 mb-3 rounded-xl border border-[#F2E8DA] text-sm outline-none h-24" placeholder="想對宇恩說的話..." value={msgText} onChange={e=>setMsgText(e.target.value)} />
+                                <button onClick={submitMessage} disabled={isSending} className="w-full py-3 bg-[#D4BCA1] text-white rounded-xl font-bold text-sm shadow-sm">{isSending?'傳送中...':'送出祝福'}</button>
+                            </div>
+
+                            <div className="space-y-4">
+                                {messages.map((m, i) => (
+                                    <div key={i} className="bg-white p-4 rounded-2xl shadow-sm border border-[#FDFBF7]">
+                                        <div className="flex justify-between items-center mb-1">
+                                            <span className="font-bold text-[#6B5A4E] text-sm">{m.name}</span>
+                                            <span className="text-[10px] text-[#BDB1A6]">{m.time ? new Date(m.time.toMillis()).toLocaleDateString() : ''}</span>
+                                        </div>
+                                        <p className="text-[#8C7A6D] text-sm">{m.text}</p>
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     )}
