@@ -1,1 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>宇恩的抓周大預測</title>
+    <!-- 引入必要的外部工具 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
+        body { font-family: 'Noto Sans TC', sans-serif; background-color: #FDFBF7; }
+        .tab-active { color: #C2A387; border-bottom: 2px solid #C2A387; }
+        .animate-fade-in { animation: fadeIn 0.5s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
 
+    <!-- Firebase 核心設定 -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCVT0MZ0lNt0ZJSRbLfkXKXPTOXjunmK12Q",
+            authDomain: "ian20260413.firebaseapp.com",
+            projectId: "ian20260413",
+            storageBucket: "ian20260413.firebasestorage.app",
+            messagingSenderId: "246723199786",
+            appId: "1:246723199786:web:f8885a2acd5bf4ddf5d453"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // 將功能掛載到 window 讓 React 程式碼讀取
+        window.fb = { db, auth, collection, addDoc, onSnapshot, serverTimestamp, signInAnonymously };
+    </script>
+
+    <!-- React 網頁邏輯 -->
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        const ITEMS = [
+            { id: 'globe', name: '地球儀', emoji: '🌍' },
+            { id: 'robot', name: '機器人', emoji: '🤖' },
+            { id: 'mic', name: '麥克風', emoji: '🎤' },
+            { id: 'computer', name: '電腦', emoji: '💻' },
+            { id: 'seal', name: '官印', emoji: '💮' },
+            { id: 'airplane', name: '飛機', emoji: '✈️' },
+            { id: 'gold_ingot', name: '元寶', emoji: '💰' },
+            { id: 'stethoscope', name: '聽診器', emoji: '🩺' },
+            { id: 'abacus', name: '算盤', emoji: '🧮' },
+            { id: 'palette', name: '畫盤', emoji: '🎨' },
+            { id: 'camera', name: '相機', emoji: '📷' },
+            { id: 'gavel', name: '法官槌', emoji: '⚖️' }
+        ];
+
+        function App() {
+            const [activeTab, setActiveTab] = useState('vote');
+            const [votes, setVotes] = useState([]);
+            const [name, setName] = useState('');
+            const [selected, setSelected] = useState([]);
+            const [voted, setVoted] = useState(localStorage.getItem('voted_ian') === 'true');
+
+            useEffect(() => {
+                const init = async () => {
+                    while(!window.fb) await new Promise(r => setTimeout(r, 100));
+                    const { db, auth, collection, onSnapshot, signInAnonymously } = window.fb;
+                    await signInAnonymously(auth);
+                    onSnapshot(collection(db, "votes"), s => setVotes(s.docs.map(d => d.data())));
+                };
+                init();
+            }, []);
+
+            const submitVote = async () => {
+                if(selected.length !== 3 || !name) return;
+                const { db, collection, addDoc, serverTimestamp } = window.fb;
+                await addDoc(collection(db, "votes"), { name, items: selected, time: serverTimestamp() });
+                localStorage.setItem('voted_ian', 'true');
+                setVoted(true);
+                setActiveTab('results');
+            };
+
+            return (
+                <div className="max-w-md mx-auto min-h-screen pb-24 px-4 pt-8">
+                    {activeTab === 'vote' && (
+                        <div className="animate-fade-in">
+                            <h1 className="text-2xl font-bold text-[#6B5A4E] text-center mb-6">謝宇恩抓周大預測</h1>
+                            {!voted ? (
+                                <div className="bg-white p-6 rounded-3xl shadow-sm border border-[#F2E8DA]">
+                                    <input className="w-full p-4 mb-4 rounded-2xl border-2 border-[#F2E8DA] focus:border-[#D4BCA1] outline-none" placeholder="您的稱呼" value={name} onChange={e=>setName(e.target.value)} />
+                                    <p className="text-xs text-[#8C7A6D] mb-4 text-center">請選出您心目中宇恩會抓到的 3 個物品 ({selected.length}/3)</p>
+                                    <div className="grid grid-cols-3 gap-2 mb-6">
+                                        {ITEMS.map(item => {
+                                            const isSelected = selected.find(i=>i.id===item.id);
+                                            return (
+                                                <button key={item.id} onClick={() => {
+                                                    if(isSelected) setSelected(selected.filter(i=>i.id!==item.id))
+                                                    else if(selected.length < 3) setSelected([...selected, item])
+                                                }} className={`p-2 rounded-xl border-2 transition-all ${isSelected ? 'bg-[#F2E8DA] border-[#D4BCA1]' : 'bg-white border-transparent'}`}>
+                                                    <div className="text-2xl">{item.emoji}</div>
+                                                    <div className="text-[10px] font-bold text-[#6B5A4E]">{item.name}</div>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                    <button disabled={selected.length!==3 || !name} onClick={submitVote} className="w-full py-4 bg-[#C2A387] text-white rounded-2xl font-bold disabled:opacity-50 shadow-md">送出預測</button>
+                                </div>
+                            ) : (
+                                <div className="text-center p-10 bg-white rounded-3xl border border-[#F2E8DA]">
+                                    <div className="text-4xl mb-4">👶🏻</div>
+                                    <h2 className="text-xl font-bold text-[#6B5A4E]">感謝預測！</h2>
+                                    <p className="text-[#8C7A6D] mt-2">派對當天見分曉！</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {activeTab === 'results' && (
+                        <div className="animate-fade-in">
+                            <h1 className="text-2xl font-bold text-[#6B5A4E] text-center mb-8">即時戰況</h1>
+                            {ITEMS.map(item => {
+                                const count = votes.filter(v => v.items && v.items.find(i=>i.id===item.id)).length;
+                                return count > 0 && (
+                                    <div key={item.id} className="bg-white p-4 mb-3 rounded-2xl shadow-sm flex items-center gap-4 border border-[#FDFBF7]">
+                                        <span className="text-2xl">{item.emoji}</span>
+                                        <div className="flex-grow">
+                                            <div className="flex justify-between text-sm font-bold text-[#6B5A4E]"><span>{item.name}</span><span>{count} 票</span></div>
+                                            <div className="w-full bg-[#F4F0EB] h-2 rounded-full mt-1 overflow-hidden">
+                                                <div className="bg-[#D4BCA1] h-2 rounded-full transition-all duration-1000" style={{width: `${(count/Math.max(votes.length, 1))*100}%`}}></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    {activeTab === 'about' && (
+                        <div className="animate-fade-in">
+                            <div className="bg-[#EAE0D3] p-8 rounded-3xl text-center mb-6 shadow-sm">
+                                <img src="./image.png" className="w-32 h-32 mx-auto rounded-full border-4 border-white object-cover mb-4 shadow-lg" onError={(e)=>e.target.src='https://api.dicebear.com/7.x/avataaars/svg?seed=Baby'} />
+                                <h2 className="text-2xl font-bold text-[#5A4A42]">謝宇恩</h2>
+                                <p className="text-[#8C7A6D] text-xs mt-1">2025.04.13 Zhuazhou Party</p>
+                            </div>
+                            <div className="bg-white/80 p-6 rounded-3xl text-center text-[#6B5A4E] text-sm leading-relaxed border border-[#F2E8DA]">
+                                <p>宇恩，是我們生命中最溫柔的重心。<br/>謝謝大家陪伴他成長，見證這份回憶。</p>
+                            </div>
+                        </div>
+                    )}
+
+                    <nav className="fixed bottom-8 left-1/2 -translate-x-1/2 w-[85%] max-w-sm bg-white/90 backdrop-blur-md p-2 rounded-full flex justify-around shadow-2xl border border-[#F2E8DA]">
+                        <button onClick={()=>setActiveTab('vote')} className={`px-5 py-2 rounded-full font-bold text-xs ${activeTab==='vote'?'bg-[#F2E8DA] text-[#A68A6E]':'text-[#D1C6BB]'}`}>預測</button>
+                        <button onClick={()=>setActiveTab('results')} className={`px-5 py-2 rounded-full font-bold text-xs ${activeTab==='results'?'bg-[#F2E8DA] text-[#A68A6E]':'text-[#D1C6BB]'}`}>戰況</button>
+                        <button onClick={()=>setActiveTab('about')} className={`px-5 py-2 rounded-full font-bold text-xs ${activeTab==='about'?'bg-[#F2E8DA] text-[#A68A6E]':'text-[#D1C6BB]'}`}>關於</button>
+                    </nav>
+                </div>
+            );
+        }
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>
