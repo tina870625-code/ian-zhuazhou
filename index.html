@@ -208,13 +208,15 @@
                                 <h2 className="text-2xl font-bold text-[#5A4A42] mt-1">{ageString}</h2>
                             </div>
 
-                            <Heart className="text-[#D4BCA1] mb-4 mx-auto" size={24} />
-                            <div className="bg-white p-6 rounded-3xl text-center text-[#6B5A4E] text-sm leading-relaxed border border-[#F2E8DA] mb-6">
-                                <p>宇恩，是我們在忙碌生活中<br/>最溫柔的重心。</p>
+                            <div className="px-2 mb-8">
+        <div className="bg-white/70 backdrop-blur-sm rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.03)] border border-[#F2E8DA]">
+          <Heart className="text-[#D4BCA1] mb-4 mx-auto" size={24} />
+          <div className="space-y-4 text-center leading-relaxed text-[#6B5A4E] text-sm font-medium tracking-wide">
+            <p>宇恩，是我們在忙碌生活中<br/>最溫柔的重心。</p>
             <p>在成為爸爸媽媽的這段旅程裡，<br/>我們一邊學習、一邊成長，<br/>也一邊感受愛的樣子。</p>
             <p>抓周，不只是傳統習俗，<br/>更是我們為他留下的<br/>一段充滿祝福與參與的回憶。</p>
-                            </div>
-
+          </div>
+                            
                             <div className="bg-white p-6 rounded-3xl shadow-sm border border-[#F2E8DA] mb-6">
                                 <h3 className="font-bold text-[#6B5A4E] mb-4">留下一句祝福：</h3>
                                 <input className="w-full p-3 mb-3 rounded-xl border border-[#F2E8DA] text-sm outline-none" placeholder="您的名字" value={name} onChange={e=>setName(e.target.value)} />
