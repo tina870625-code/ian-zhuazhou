@@ -24,7 +24,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-        import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCVT0MZ0lNt0ZJSRbLfkXKXPTOXjunmK12Q",
@@ -39,7 +39,8 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        window.fb = { db, auth, collection, addDoc, onSnapshot, serverTimestamp, signInAnonymously };
+        // 將功能掛載到 window 讓 React 程式碼讀取
+        window.fb = { db, auth, collection, addDoc, onSnapshot, serverTimestamp, signInAnonymously, query, orderBy, limit };
     </script>
 
     <!-- React 網頁邏輯 -->
@@ -89,7 +90,11 @@
                     while(!window.fb) await new Promise(r => setTimeout(r, 100));
                     const { db, auth, collection, onSnapshot, signInAnonymously } = window.fb;
                     await signInAnonymously(auth);
+                    
+                    // 即時監聽投票
                     onSnapshot(collection(db, "votes"), s => setVotes(s.docs.map(d => d.data())));
+                    
+                    // 即時監聽留言 (依時間排序)
                     onSnapshot(collection(db, "messages"), s => {
                         const msgs = s.docs.map(d => d.data()).sort((a, b) => (b.time?.toMillis() || 0) - (a.time?.toMillis() || 0));
                         setMessages(msgs);
@@ -116,12 +121,16 @@
             };
 
             const submitMessage = async () => {
-                if(!name || !msgText) return;
+                if(!name || !msgText) {
+                    alert('請填寫名字和祝福內容喔！');
+                    return;
+                }
                 setIsSending(true);
                 const { db, collection, addDoc, serverTimestamp } = window.fb;
                 await addDoc(collection(db, "messages"), { name, text: msgText, time: serverTimestamp() });
                 setMsgText('');
                 setIsSending(false);
+                alert('祝福已送出！');
             };
 
             return (
@@ -164,23 +173,30 @@
                     {activeTab === 'results' && (
                         <div className="animate-fade-in">
                             <h1 className="text-2xl font-bold text-[#6B5A4E] text-center mb-8">即時戰況</h1>
-                            {ITEMS.map(item => {
-                                const count = votes.filter(v => v.items && v.items.find(i=>i.id===item.id)).length;
-                                return count > 0 && (
-                                    <div key={item.id} className="bg-white p-4 mb-3 rounded-2xl shadow-sm flex items-center gap-4 border border-[#FDFBF7]">
-                                        <span className="text-2xl">{item.emoji}</span>
-                                        <div className="flex-grow">
-                                            <div className="flex justify-between text-sm font-bold text-[#6B5A4E]">
-                                                <span>{item.name} <span className="font-normal text-[10px] text-[#BDB1A6]">({item.desc})</span></span>
-                                                <span>{count} 票</span>
-                                            </div>
-                                            <div className="w-full bg-[#F4F0EB] h-2 rounded-full mt-1 overflow-hidden">
-                                                <div className="bg-[#D4BCA1] h-2 rounded-full transition-all duration-1000" style={{width: `${(count/Math.max(votes.length, 1))*100}%`}}></div>
+                            {/* 🌟 修正：如果沒有人投票，顯示提示文字 🌟 */}
+                            {votes.length === 0 ? (
+                                <div className="text-center py-12 bg-white/60 rounded-3xl border border-dashed border-[#D4BCA1] shadow-sm">
+                                    <p className="text-[#8C7A6D]">目前還沒有人投票喔，快去搶頭香！</p>
+                                </div>
+                            ) : (
+                                ITEMS.map(item => {
+                                    const count = votes.filter(v => v.items && v.items.find(i=>i.id===item.id)).length;
+                                    return count > 0 && (
+                                        <div key={item.id} className="bg-white p-4 mb-3 rounded-2xl shadow-sm flex items-center gap-4 border border-[#FDFBF7]">
+                                            <span className="text-2xl">{item.emoji}</span>
+                                            <div className="flex-grow">
+                                                <div className="flex justify-between text-sm font-bold text-[#6B5A4E]">
+                                                    <span>{item.name} <span className="font-normal text-[10px] text-[#BDB1A6]">({item.desc})</span></span>
+                                                    <span>{count} 票</span>
+                                                </div>
+                                                <div className="w-full bg-[#F4F0EB] h-2 rounded-full mt-1 overflow-hidden">
+                                                    <div className="bg-[#D4BCA1] h-2 rounded-full transition-all duration-1000" style={{width: `${(count/Math.max(votes.length, 1))*100}%`}}></div>
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                );
-                            })}
+                                    );
+                                })
+                            )}
                         </div>
                     )}
 
@@ -204,23 +220,29 @@
                             </div>
 
                             <div className="space-y-4">
-                                {messages.map((m, i) => (
-                                    <div key={i} className="bg-white p-4 rounded-2xl shadow-sm border border-[#FDFBF7]">
-                                        <div className="flex justify-between items-center mb-1">
-                                            <span className="font-bold text-[#6B5A4E] text-sm">{m.name}</span>
-                                            <span className="text-[10px] text-[#BDB1A6]">{m.time ? new Date(m.time.toMillis()).toLocaleDateString() : ''}</span>
+                                <h3 className="font-bold text-[#6B5A4E] pl-2">祝福牆：</h3>
+                                {messages.length === 0 ? (
+                                    <p className="text-center text-[#BDB1A6] text-sm py-4">目前還沒有人留言喔！</p>
+                                ) : (
+                                    messages.map((m, i) => (
+                                        <div key={i} className="bg-white p-4 rounded-2xl shadow-sm border border-[#FDFBF7]">
+                                            <div className="flex justify-between items-center mb-1">
+                                                <span className="font-bold text-[#6B5A4E] text-sm">{m.name}</span>
+                                                <span className="text-[10px] text-[#BDB1A6]">{m.time ? new Date(m.time.toMillis()).toLocaleDateString() : ''}</span>
+                                            </div>
+                                            <p className="text-[#8C7A6D] text-sm">{m.text}</p>
                                         </div>
-                                        <p className="text-[#8C7A6D] text-sm">{m.text}</p>
-                                    </div>
-                                ))}
+                                    ))
+                                )}
                             </div>
                         </div>
                     )}
 
+                    {/* 🌟 修正：底部導覽列順序改為 戰況、投票、留言 🌟 */}
                     <nav className="fixed bottom-8 left-1/2 -translate-x-1/2 w-[85%] max-w-sm bg-white/90 backdrop-blur-md p-2 rounded-full flex justify-around shadow-2xl border border-[#F2E8DA]">
-                        <button onClick={()=>setActiveTab('vote')} className={`px-5 py-2 rounded-full font-bold text-xs ${activeTab==='vote'?'bg-[#F2E8DA] text-[#A68A6E]':'text-[#D1C6BB]'}`}>預測</button>
-                        <button onClick={()=>setActiveTab('results')} className={`px-5 py-2 rounded-full font-bold text-xs ${activeTab==='results'?'bg-[#F2E8DA] text-[#A68A6E]':'text-[#D1C6BB]'}`}>戰況</button>
-                        <button onClick={()=>setActiveTab('about')} className={`px-5 py-2 rounded-full font-bold text-xs ${activeTab==='about'?'bg-[#F2E8DA] text-[#A68A6E]':'text-[#D1C6BB]'}`}>關於</button>
+                        <button onClick={()=>setActiveTab('results')} className={`px-5 py-2 rounded-full font-bold text-xs transition-colors ${activeTab==='results'?'bg-[#F2E8DA] text-[#A68A6E]':'text-[#D1C6BB]'}`}>戰況</button>
+                        <button onClick={()=>setActiveTab('vote')} className={`px-5 py-2 rounded-full font-bold text-xs transition-colors ${activeTab==='vote'?'bg-[#F2E8DA] text-[#A68A6E]':'text-[#D1C6BB]'}`}>投票</button>
+                        <button onClick={()=>setActiveTab('about')} className={`px-5 py-2 rounded-full font-bold text-xs transition-colors ${activeTab==='about'?'bg-[#F2E8DA] text-[#A68A6E]':'text-[#D1C6BB]'}`}>留言</button>
                     </nav>
                 </div>
             );
