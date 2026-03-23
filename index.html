@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>宇恩的抓周大預測</title>
-    <!-- 引入必要的外部工具 -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -20,7 +19,6 @@
 <body>
     <div id="root"></div>
 
-    <!-- Firebase 核心設定 -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
@@ -43,17 +41,11 @@
         window.fb = { db, auth, collection, addDoc, onSnapshot, serverTimestamp, signInAnonymously, query, orderBy, limit };
     </script>
 
-    <!-- React 網頁邏輯 -->
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
 
-        // ==========================================
-        // 0. 原生 SVG 圖示組件
-        // ==========================================
         const SvgIcon = ({ size = 24, className = '', fill = 'none', strokeWidth = "2", children }) => (
-          <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
-            {children}
-          </svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>{children}</svg>
         );
 
         const Home = (props) => <SvgIcon {...props}><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></SvgIcon>;
@@ -64,7 +56,6 @@
         const CheckCircle2 = (props) => <SvgIcon {...props}><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></SvgIcon>;
         const Heart = (props) => <SvgIcon {...props}><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></SvgIcon>;
 
-        // 🌟 完整的 24 個選項與職業說明 🌟
         const ITEMS = [
             { id: 'globe', name: '地球儀', desc: '導遊 / 旅遊家', emoji: '🌍' },
             { id: 'blackboard', name: '黑板', desc: '老師 / 教授', emoji: '🧑‍🏫' },
@@ -93,7 +84,7 @@
         ];
 
         function App() {
-            const [activeTab, setActiveTab] = useState('vote');
+            const [activeTab, setActiveTab] = useState('results');
             const [votes, setVotes] = useState([]);
             const [messages, setMessages] = useState([]);
             const [name, setName] = useState('');
@@ -107,14 +98,23 @@
                 const init = async () => {
                     while(!window.fb) await new Promise(r => setTimeout(r, 100));
                     const { db, auth, collection, onSnapshot, signInAnonymously } = window.fb;
-                    await signInAnonymously(auth);
+                    
+                    // 🌟 防卡死保護罩：如果無痕模式阻擋登入，跳過錯誤繼續拉取資料
+                    try {
+                        await signInAnonymously(auth);
+                    } catch (error) {
+                        console.warn("被無痕模式擋住登入，已啟動備用讀取模式");
+                    }
                     
                     // 即時監聽投票
                     onSnapshot(collection(db, "votes"), s => setVotes(s.docs.map(d => d.data())));
                     
-                    // 即時監聽留言 (依時間排序)
+                    // 即時監聽留言 (安全時間排序，防報錯)
                     onSnapshot(collection(db, "messages"), s => {
-                        const msgs = s.docs.map(d => d.data()).sort((a, b) => (b.time?.toMillis() || 0) - (a.time?.toMillis() || 0));
+                        const msgs = s.docs.map(d => {
+                            const data = d.data();
+                            return { ...data, safeTime: data.time ? data.time.toMillis() : Date.now() };
+                        }).sort((a, b) => b.safeTime - a.safeTime);
                         setMessages(msgs);
                     });
                 };
@@ -132,11 +132,15 @@
             const submitVote = async () => {
                 if(selected.length !== 3 || !name) return;
                 const { db, collection, addDoc, serverTimestamp } = window.fb;
-                await addDoc(collection(db, "votes"), { name, items: selected, time: serverTimestamp() });
-                localStorage.setItem('voted_ian_final', 'true');
-                setVoted(true);
-                setActiveTab('results');
-                window.scrollTo(0, 0);
+                try {
+                    await addDoc(collection(db, "votes"), { name, items: selected, time: serverTimestamp() });
+                    localStorage.setItem('voted_ian_final', 'true');
+                    setVoted(true);
+                    setActiveTab('results');
+                    window.scrollTo(0, 0);
+                } catch(e) {
+                    alert('送出失敗，請重試！');
+                }
             };
 
             const submitMessage = async () => {
@@ -146,10 +150,14 @@
                 }
                 setIsSending(true);
                 const { db, collection, addDoc, serverTimestamp } = window.fb;
-                await addDoc(collection(db, "messages"), { name, text: msgText, time: serverTimestamp() });
-                setMsgText('');
+                try {
+                    await addDoc(collection(db, "messages"), { name, text: msgText, time: serverTimestamp() });
+                    setMsgText('');
+                    alert('祝福已送出！');
+                } catch(e) {
+                    alert('留言失敗，請重試！');
+                }
                 setIsSending(false);
-                alert('祝福已送出！');
             };
 
             return (
@@ -171,11 +179,7 @@
                                                     if(isSelected) setSelected(selected.filter(i=>i.id!==item.id))
                                                     else if(selected.length < 3) setSelected([...selected, item])
                                                 }} className={`relative p-3 rounded-2xl border-2 transition-all flex flex-col items-center justify-center ${isSelected ? 'bg-[#F2E8DA] border-[#D4BCA1] scale-105 shadow-sm' : 'bg-white border-transparent hover:border-[#EAE0D3]'} ${isMaxedOut ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                                                    {isSelected && (
-                                                        <div className="absolute top-1 right-1 text-[#D4BCA1] bg-white rounded-full">
-                                                            <CheckCircle2 size={16} fill="currentColor" className="text-[#D4BCA1]" />
-                                                        </div>
-                                                    )}
+                                                    {isSelected && <div className="absolute top-1 right-1 text-[#D4BCA1] bg-white rounded-full"><CheckCircle2 size={16} fill="currentColor" className="text-[#D4BCA1]" /></div>}
                                                     <div className="text-3xl mb-1 filter drop-shadow-sm">{item.emoji}</div>
                                                     <div className={`text-sm font-bold ${isSelected ? 'text-[#6B5A4E]' : 'text-[#8C7A6D]'}`}>{item.name}</div>
                                                     <div className="text-[10px] text-[#A68A6E] mt-0.5">{item.desc}</div>
@@ -190,9 +194,7 @@
                                     <div className="w-20 h-20 bg-[#F2E8DA] rounded-full flex items-center justify-center mx-auto mb-4"><CheckCircle2 size={40} className="text-[#C2A387]" /></div>
                                     <h2 className="text-xl font-bold text-[#6B5A4E] mb-2">預測成功！</h2>
                                     <p className="text-[#8C7A6D] mt-2 mb-6">謝謝您的參與，點擊下方前往觀看即時戰況吧 🤍</p>
-                                    <button onClick={() => setActiveTab('results')} className="px-6 py-3 bg-[#C2A387] text-white rounded-xl font-medium shadow-sm hover:bg-[#B39375] transition-colors">
-                                        查看戰況 <BarChart2 size={16} className="inline ml-1 mb-0.5" />
-                                    </button>
+                                    <button onClick={() => setActiveTab('results')} className="px-6 py-3 bg-[#C2A387] text-white rounded-xl font-medium shadow-sm hover:bg-[#B39375] transition-colors">查看戰況 <BarChart2 size={16} className="inline ml-1 mb-0.5" /></button>
                                 </div>
                             )}
                         </div>
@@ -206,7 +208,7 @@
                             
                             {votes.length === 0 ? (
                                 <div className="text-center py-12 bg-white/60 rounded-3xl border border-dashed border-[#D4BCA1] shadow-sm">
-                                    <p className="text-[#8C7A6D]">目前還沒有人投票喔，快去搶頭香！</p>
+                                    <p className="text-[#8C7A6D]">正在連線讀取中，如果沒看到代表還沒人搶頭香喔！</p>
                                 </div>
                             ) : (
                                 ITEMS.map((item, index) => {
@@ -254,25 +256,13 @@
                                 <p className="text-[#A68A6E] text-xs">了 🤍</p>
                             </div>
                             
-                            {/* 🌟 C.A. Create Aroma 質感的文案排版區塊 🌟 */}
                             <div className="px-1 mb-8">
                                 <div className="bg-white/80 backdrop-blur-sm rounded-[2rem] p-8 shadow-[0_8px_30px_rgb(0,0,0,0.03)] border border-[#F2E8DA]">
                                     <Heart className="text-[#D4BCA1] mb-6 mx-auto" size={28} strokeWidth="1.5" />
                                     <div className="space-y-6 text-center leading-[2.2] text-[#6B5A4E] text-[15px] font-medium tracking-[0.15em]">
-                                        <p>
-                                            宇恩，是我們在忙碌生活中<br/>
-                                            最溫柔的重心。
-                                        </p>
-                                        <p>
-                                            在成為爸爸媽媽的這段旅程裡，<br/>
-                                            我們一邊學習、一邊成長，<br/>
-                                            也一邊感受愛的樣子。
-                                        </p>
-                                        <p>
-                                            抓周，不只是傳統習俗，<br/>
-                                            更是我們為他留下的<br/>
-                                            一段充滿祝福與參與的回憶。
-                                        </p>
+                                        <p>宇恩，是我們在忙碌生活中<br/>最溫柔的重心。</p>
+                                        <p>在成為爸爸媽媽的這段旅程裡，<br/>我們一邊學習、一邊成長，<br/>也一邊感受愛的樣子。</p>
+                                        <p>抓周，不只是傳統習俗，<br/>更是我們為他留下的<br/>一段充滿祝福與參與的回憶。</p>
                                     </div>
                                 </div>
                             </div>
@@ -287,7 +277,7 @@
                             <div className="space-y-4">
                                 <h3 className="font-bold text-[#6B5A4E] pl-2">祝福牆</h3>
                                 {messages.length === 0 ? (
-                                    <p className="text-center text-[#BDB1A6] text-sm py-6 bg-white/40 rounded-3xl border border-dashed border-[#D4BCA1]">目前還沒有人留言，快來搶頭香寫下第一篇祝福吧！</p>
+                                    <p className="text-center text-[#BDB1A6] text-sm py-6 bg-white/40 rounded-3xl border border-dashed border-[#D4BCA1]">正在連線，如果沒看到代表還沒人留言喔！</p>
                                 ) : (
                                     messages.map((m, i) => (
                                         <div key={i} className="bg-white p-5 rounded-3xl shadow-[0_4px_20px_rgb(0,0,0,0.03)] border border-[#FDFBF7]">
@@ -296,7 +286,7 @@
                                                     <div className="w-8 h-8 bg-[#F2E8DA] rounded-full flex items-center justify-center text-[#A68A6E] font-bold text-sm">{m.name.charAt(0)}</div>
                                                     <span className="font-bold text-[#6B5A4E] text-sm">{m.name}</span>
                                                 </div>
-                                                <span className="text-[10px] text-[#BDB1A6]">{m.time ? new Date(m.time.toMillis()).toLocaleString('zh-TW', { month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit' }) : '剛剛'}</span>
+                                                <span className="text-[10px] text-[#BDB1A6]">{new Date(m.safeTime).toLocaleString('zh-TW', { month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit' })}</span>
                                             </div>
                                             <p className="text-[#8C7A6D] text-sm leading-relaxed whitespace-pre-wrap pl-11">{m.text}</p>
                                         </div>
